@@ -31,7 +31,7 @@ The directory structure should be the following:
 
 If you want to use this reposory, then you just need to clone it.
 
-`git clone`
+`git clone https://github.com/Keyan0412/ProGAN.git`
 
 ## Usage
 
