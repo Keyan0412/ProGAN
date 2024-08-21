@@ -206,7 +206,7 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(
-        description='This is a program for learning parser', 
+        description='Train your model on your own dataset', 
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
         )
     parser.add_argument('-s', '--step', type=int, required=True, help='step of training')
