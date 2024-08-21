@@ -1,7 +1,7 @@
 import torch
 import torch.optim as optim
-from torch.utils.data import DataLoader
 from torchvision import transforms
+from torch.utils.data import DataLoader
 import numpy as np
 from math import log2
 import time
@@ -55,7 +55,8 @@ def load_checkpoint(checkpoint, gen, disc, opt_gen=None, opt_disc=None):
 
 def generate_16(netG, step, filename):
     z = random_tensor = torch.rand((16, 512, 1, 1)).to(device)
-    output = netG(z, alpha=1, steps=step)
+    with torch.no_grad():
+        output = netG(z, alpha=1, steps=step)
     
     # calculate the size of grid 
     grid_size = int(np.sqrt(output.size(0)))  
@@ -70,25 +71,7 @@ def generate_16(netG, step, filename):
     transforms.ToPILImage()(grid_img*0.5 + 0.5).save(filename)
 
     return None
-        
 
-def get_loader(image_size):
-    transform = transforms.Compose(
-        [
-            transforms.Resize((image_size, image_size)),
-            transforms.ToTensor(),
-            transforms.Normalize(
-                [0.5 for _ in range(CHANNELS_IMG)],
-                [0.5 for _ in range(CHANNELS_IMG)],
-            ),
-        ]
-    )
-    batch_size = BATCH_SIZES[int(log2(image_size/4))]
-    print('batch_size:', batch_size)
-    dataset = Mydata(dir='./data', transform=transform)
-
-    loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=NUM_WORKERS, pin_memory=True)
-    return loader, dataset
 
 def train_fn(
     critic, gen,
@@ -145,7 +128,11 @@ def train_fn(
         total_time += time.time()-model_start
 
     print(f'Fraction spent on model training: {total_time/(time.time()-start)}')
-    print(f'DLoss: {true_losses.mean()}|{fake_losses.mean()}, GLoss: {losses_gen.mean()}')
+    print('Loss of Discriminator:')
+    print(f'-E[critic(real)]: {true_losses.mean()}')
+    print(f' E[critic(fake)]: {fake_losses.mean()}')
+    print('Loss of Generator: ')
+    print(f'-E[critic(fake)]: {losses_gen.mean()}')
     print(f'current alpha: {alpha}')
 
     return alpha
@@ -159,18 +146,30 @@ def main():
     opt_gen = optim.Adam(gen.parameters(), lr=LEARNING_RATE_G, betas=(0.0, 0.99))
     opt_critic = optim.Adam(critic.parameters(), lr=LEARNING_RATE_D, betas=(0.0, 0.99))
 
-    checkpoint = torch.load('workdir/model.pth.tar', weights_only=True)
     if not NEW_MODEL:
+        checkpoint = torch.load('workdir/model.pth.tar', weights_only=True)
         load_checkpoint(checkpoint=checkpoint, gen=gen, disc=critic, opt_gen=opt_gen, opt_disc=opt_critic)
 
     gen.train()
     critic.train()
 
     step = STEP
-    num_epochs = NUM_EPOCH
     alpha = INITIAL_ALPHA
 
-    loader, dataset = get_loader(4 * 2**step)
+    num_epochs = NUM_EPOCH
+    batch_size = BATCH_SIZES[step]
+    TRANSFORM = transforms.Compose(
+        [
+            transforms.Resize((4 * 2**step, 4 * 2**step)),
+            transforms.ToTensor(),
+            transforms.Normalize(
+                [0.5 for _ in range(CHANNELS_IMG)],
+                [0.5 for _ in range(CHANNELS_IMG)],
+            ),
+        ]
+    )
+    dataset = Mydata(dir='./data', transform=TRANSFORM)
+    loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=NUM_WORKERS, pin_memory=True)
 
     for epoch in range(num_epochs):
         print(f'Eposh: {epoch+1}/{num_epochs}')
@@ -199,7 +198,7 @@ def main():
             gen.eval()
             timestamp = time.time() 
             filename = 'images/' + time.strftime('%m%d|%H:%M', time.localtime(timestamp)) + '.png' 
-            generate_16(gen, alpha=alpha, step=step, filename=filename)
+            generate_16(gen, step=step, filename=filename)
             gen.train()
 
 
